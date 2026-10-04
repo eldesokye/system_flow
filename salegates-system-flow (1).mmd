@@ -1,0 +1,177 @@
+%%{init: {"theme":"base","themeVariables":{
+  "primaryColor":"#FFFFFF","primaryTextColor":"#2A0A0F","primaryBorderColor":"#7A1020",
+  "lineColor":"#8C5B63","secondaryColor":"#FBF3F4","tertiaryColor":"#FFFFFF",
+  "clusterBkg":"#FFFFFF","clusterBorder":"#C9AEB2",
+  "fontFamily":"Arial, Helvetica, sans-serif","fontSize":"16px"}} }%%
+flowchart TD
+
+%% ─────────── ENTRY ───────────
+    APP["<b>Sale Gates App</b> (Flutter)<br/>+ Admin Dashboard"]
+    API["<b>Laravel API</b>"]
+    TRG["<b>DOMAIN EVENTS</b><br/>company.registered · company.profile.updated<br/>ad.created · story.created · movement.created<br/>image.updated · company.type.changed · search.performed"]
+    BUS(["<b>EVENT BUS</b> — Laravel Queue"])
+    ORCH{{"<b>AI ORCHESTRATOR</b><br/>model router · prompt registry<br/>cost guard · retry &amp; fallback"}}
+
+    APP --> API --> TRG --> BUS --> ORCH
+
+%% ─────────── 1 COMPANY ───────────
+    subgraph M1["1 · COMPANY INTELLIGENCE"]
+        C1["<b>Score the profile</b><br/>description 30% · categories 25%<br/>name 20% · prior content 15% · logo 10%"]
+        C2{"confidence<br/>&ge; 70% ?"}
+        C3{"type matches<br/>what they chose ?"}
+        C4["<b>Open mismatch case</b><br/>evidence attached"]
+        C6["Follow-up schedule<br/>day 0 · 2 · 5 · 9"]
+        C7{"company<br/>converted ?"}
+        C8(["Re-check &middot; <b>case closed</b>"])
+        C1 --> C2
+        C2 -- yes --> C3
+        C3 -- yes --> C8
+        C3 -- no --> C4 --> C6 --> C7
+        C7 -- yes --> C8
+    end
+
+%% ─────────── 2 CONTENT ───────────
+    subgraph M2["2 · CONTENT INTELLIGENCE"]
+        N1["Identify owner &middot; owner type<br/>content type &middot; country &middot; category"]
+        N2["<b>LAYER 0 — rules</b><br/>category fit · price · fields<br/>owner-type match &middot; <b>cost 0</b>"]
+        N3{"settled ?<br/>~65%"}
+        N4["<b>LAYER 1 — cheap model</b><br/>~0.0002 USD"]
+        N5{"confident ?"}
+        N6["<b>LAYER 2 — stronger model</b><br/>~0.002 USD"]
+        N7{"confident ?"}
+        N8(["<b>APPROVED</b><br/>no auto-reject exists"])
+        N1 --> N2 --> N3
+        N3 -- yes --> N8
+        N3 -- no --> N4 --> N5
+        N5 -- yes --> N8
+        N5 -- no --> N6 --> N7
+        N7 -- yes --> N8
+    end
+
+%% ─────────── 3 IMAGE ───────────
+    subgraph M3["3 · IMAGE INTELLIGENCE"]
+        I1["<b>Store the ORIGINAL</b><br/>never overwritten"]
+        I2["Quality measured locally<br/>blur · light · resolution · watermark<br/><b>cost 0</b>"]
+        I3{"weak ?"}
+        I4["Enhance"]
+        I5{"result<br/>better ?"}
+        I6["Keep the original"]
+        I1 --> I2 --> I3
+        I3 -- yes --> I4 --> I5
+        I5 -- no --> I6
+    end
+
+%% ─────────── 4 TEMPLATE ───────────
+    subgraph M4["4 · TEMPLATE ENGINE"]
+        P1["Pick template by category"]
+        P2{"in cache ?"}
+        P3["Generate once<br/>then cache for the category"]
+        P4["Compose image + ad data<br/>local rendering &middot; <b>cost 0</b>"]
+        P5{"valid ?"}
+        P6(["<b>PUBLISHED</b>"])
+        P7["Publish the original instead"]
+        P1 --> P2
+        P2 -- yes --> P4
+        P2 -- no --> P3 --> P4 --> P5
+        P5 -- yes --> P6
+        P5 -- no --> P7
+    end
+
+%% ─────────── 5 CUSTOMER SERVICE ───────────
+    subgraph M5["5 · CUSTOMER SERVICE — WhatsApp"]
+        W0["<b>Outbound</b> welcome · reason · reminders<br/>utility template 0.0073 USD"]
+        W1["Inbound message &middot; webhook"]
+        W2["Detect intent"]
+        W3["Retrieve knowledge<br/>profile · categories · products<br/>FAQ · rules · classification evidence"]
+        W4{"answerable from<br/>the evidence ?"}
+        W5(["AI reply<br/><b>free inside the 24h window</b>"])
+        W0 --> W1 --> W2 --> W3 --> W4
+        W4 -- yes --> W5
+    end
+
+%% ─────────── 6 SEARCH ───────────
+    subgraph M6["6 · SEARCH &amp; RECOMMENDATION"]
+        S1["User query"]
+        S2{"cached or<br/>rule-parsable ?"}
+        S3["Understand with cheap model<br/>brand · type · year · city · price"]
+        S4["Retrieve candidates"]
+        S5["Sale Gates listings"]
+        S6["External web sources"]
+        S7["Normalise + recommendation signals<br/>relevance · location · similarity · behaviour<br/>popularity · freshness · quality"]
+        S8["<b>Hybrid ranking</b>"]
+        S9(["Ranked results<br/>+ AI answer <b>with sources</b>"])
+        S1 --> S2
+        S2 -- yes --> S4
+        S2 -- no --> S3 --> S4
+        S4 --> S5 --> S7
+        S4 --> S6 --> S7
+        S7 --> S8 --> S9
+    end
+
+%% ─────────── HUMAN + DATA ───────────
+    HQ["<b>HUMAN / ADMIN REVIEW QUEUE</b><br/>~2% of items &middot; carries reason, evidence,<br/>confidence, model and prompt version"]
+    HD["Admin decides<br/>approve · correct the type · reject · escalate"]
+    LOOP["<b>FEEDBACK</b><br/>every outcome re-enters the bus"]
+    DB[("<b>MySQL on DigitalOcean</b><br/>classification_runs · mismatch_cases · whatsapp_followups<br/>content_items · content_checks · image_jobs · templates<br/>conversations · messages · review_queue<br/>search_queries · user_interactions · ai_runs · events")]
+
+%% ─────────── WIRING ───────────
+    ORCH --> C1
+    ORCH --> N1
+    ORCH --> W1
+    ORCH --> S1
+    N8 ==> |"content.approved"| I1
+    I3 -- no --> P1
+    I5 -- yes --> P1
+    I6 --> P1
+    C4 -. "company.outreach.required" .-> W0
+    C6 -. "followup.required" .-> W0
+    W5 -. "company.response.received" .-> C7
+    C2 -- "no · too uncertain" --> HQ
+    C7 -- "no reply · stays active" --> HQ
+    N7 -- no --> HQ
+    N5 -. "policy doubt" .-> HQ
+    P7 --> HQ
+    W4 -- "no · complex or sensitive" --> HQ
+    HQ --> HD
+    HD --> LOOP
+    C8 --> LOOP
+    S9 --> LOOP
+    LOOP -. "continuous re-evaluation" .-> BUS
+    ORCH -. "every decision + evidence" .-> DB
+
+%% ─────────── LEGEND ───────────
+    subgraph LG["COST LEGEND"]
+        L0["rules &amp; local code — 0"]
+        L1["cheap model — ~0.0002"]
+        L2["stronger model — ~0.002"]
+        L3["human review — ~2% of items"]
+    end
+
+%% ─────────── STYLE ───────────
+    classDef free fill:#2C7A4B,stroke:#215C39,color:#FFFFFF
+    classDef cheap fill:#E0A52E,stroke:#B5811F,color:#2A0A0F
+    classDef exp fill:#7A1020,stroke:#5C0C18,color:#FFFFFF
+    classDef human fill:#1F5C7A,stroke:#164358,color:#FFFFFF
+    classDef out fill:#EAF5EE,stroke:#2C7A4B,color:#1B4A2E
+    classDef core fill:#2A0A0F,stroke:#2A0A0F,color:#FFFFFF
+    classDef orch fill:#E0A52E,stroke:#B5811F,color:#2A0A0F
+    classDef store fill:#F2F2F2,stroke:#8A8A8A,color:#2A0A0F
+    classDef plain fill:#FBF3F4,stroke:#B98C93,color:#2A0A0F
+
+    class N2,I2,P4,L0 free
+    class N4,S3,L1 cheap
+    class N6,L2 exp
+    class HQ,HD,L3 human
+    class N8,P6,C8,S9,W5 out
+    class BUS,TRG,LOOP core
+    class ORCH orch
+    class DB store
+    class APP,API,C1,C4,C6,I1,I4,I6,P1,P3,P7,W0,W1,W2,W3,S1,S4,S5,S6,S7,S8,N1 plain
+
+    style M1 fill:#FDFAFA,stroke:#C9AEB2,stroke-width:2px
+    style M2 fill:#FDFAFA,stroke:#C9AEB2,stroke-width:2px
+    style M3 fill:#FDFAFA,stroke:#C9AEB2,stroke-width:2px
+    style M4 fill:#FDFAFA,stroke:#C9AEB2,stroke-width:2px
+    style M5 fill:#FDFAFA,stroke:#C9AEB2,stroke-width:2px
+    style M6 fill:#FDFAFA,stroke:#C9AEB2,stroke-width:2px
+    style LG fill:#FFFFFF,stroke:#C9AEB2,stroke-width:1px
